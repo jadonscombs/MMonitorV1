@@ -31,6 +31,7 @@ from constants import *
 
 # Logger config
 logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
 log_handler = RotatingFileHandler(
     'mmonitor-app.log',
     maxBytes=10*KB,
@@ -47,6 +48,7 @@ console_handler.setFormatter(
     logging.Formatter('%(asctime)s - %(name)s - [%(levelname)s] - %(message)s')
 )
 
+# Add log handlers
 logger.addHandler(log_handler)
 logger.addHandler(console_handler)
 
@@ -95,6 +97,8 @@ def start_monitor():
     if not cap.isOpened():
         logger.error(f"ERROR: Cannot open camera '{CAM_INDEX}'")
         return
+    else:
+        logger.info("OK - Capture hardware is accessible")
     
     # MOG2 background subtractor
     bg_sub = cv2.createBackgroundSubtractorMOG2(
@@ -102,6 +106,7 @@ def start_monitor():
         varThreshold=25,
         detectShadows=True
     )
+    logger.info("OK - Created MOG2 background subractor")
 
     # Loop variables
     frame_buffer = deque(maxlen=PRE_SECONDS * FPS + 5)
@@ -121,7 +126,7 @@ def start_monitor():
                 continue
 
             # optionally resize for speed (already set)
-            # frame = cv2.resize(frame, (WIDTH, HEIGHT))
+            frame = cv2.resize(frame, (WIDTH, HEIGHT))
 
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             fgmask = bg_sub.apply(gray)
@@ -145,6 +150,7 @@ def start_monitor():
             # handle detection
             now = time.time()
             if motion_detected:
+                logger.debug("motion detected!")
                 # enforce debounce: only start new recording if enough time since last clip ended
                 if not recording and (now - last_clip_end) >= DEBOUNCE_SECONDS:
                     # start writer and pre-fill with buffer
