@@ -28,12 +28,16 @@ import sys
 # Import constants
 from constants import *
 
+# Import and init object detectors
+from detectors.person_detector import PersonDetector
+person_detector = PersonDetector(OBJECT_DETECT_MODEL_PATH, threshold=0.6)
+
 
 # Logger config
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 log_handler = RotatingFileHandler(
-    'mmonitor-app.log',
+    'monitor-app.log',
     maxBytes=10*KB,
     backupCount=5
 )
@@ -53,11 +57,17 @@ logger.addHandler(log_handler)
 logger.addHandler(console_handler)
 
 
+# TODO: Add implementation of "Monitor" class
+class Monitor:
+    def __init__(self):
+        pass
+
+
 # create S3 client (uses env vars or ~/.aws/credentials or instance profile)
 s3_client = boto3.client('s3') if S3_UPLOAD else None
 
 # Define video encoding for OpenCV
-fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # type: ignore
 
 
 def upload_to_s3_local(filepath, bucket, key):
@@ -83,15 +93,32 @@ def uploader_thread(filepath):
 
 
 def get_time_now():
-    return datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+    return datetime.datetime.now(datetime.timezone.utc).strftime(ISOFORMAT)
+
+
+def run_object_detectors_on_frame(frame):
+    """
+    Returns a filename suffix denoting whether the frame's associated recording
+    captured a categorized object.
+
+    If no recognized object detected, then ('', 0.0) is returned.
+    Else, return (<object_suffix>, <object_confidence_score>).
+    """
+    person_score = person_detector.detect_person(frame)
+    if person_score >= person_detector.threshold:
+        return (person_detector.suffix, person_score)
+    return ('', 0.0)
 
 
 # Core logic
 def start_monitor():
+    logger.info("Starting MMonitor Application...")
+
     cap = cv2.VideoCapture(CAM_INDEX)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, WIDTH)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, HEIGHT)
     cap.set(cv2.CAP_PROP_FPS, FPS)
+    logger.info("CV2 VideoCapture initialized...")
 
     # Check if camera is accessible
     if not cap.isOpened():
@@ -124,6 +151,9 @@ def start_monitor():
                 logger.warning("Frame grab failed.")
                 time.sleep(0.1)
                 continue
+            
+            # grab timestamp closer to detection time
+            now = time.time()
 
             # optionally resize for speed (already set)
             frame = cv2.resize(frame, (WIDTH, HEIGHT))
@@ -148,21 +178,28 @@ def start_monitor():
             frame_buffer.append(frame.copy())
 
             # handle detection
-            now = time.time()
             if motion_detected:
-                logger.debug("motion detected!")
+                #logger.debug("motion detected!")
+
                 # enforce debounce: only start new recording if enough time since last clip ended
+                #
+                # e.g., "if not yet recording, and at least <DEBOUNCE_SECONDS"
+                # of stillness/no motion has passed since the last recording,
+                # then prepare variables and data for a new recording"
                 if not recording and (now - last_clip_end) >= DEBOUNCE_SECONDS:
                     # start writer and pre-fill with buffer
                     filename = f"motion_{get_time_now()}_{uuid.uuid4().hex[:8]}.mp4"
                     filepath = os.path.join(OUT_DIR, filename)
-                    writer = cv2.VideoWriter(filepath, fourcc, FPS, (frame.shape[1], frame.shape[0]))
+                    writer: cv2.VideoWriter = cv2.VideoWriter(filepath, fourcc, FPS, (frame.shape[1], frame.shape[0]))
                     # write pre-buffer
                     for bf in frame_buffer:
                         writer.write(bf)
                     recording = True
                     logger.info(f"Started recording: {filepath}")
-                # reset/extend post-timer
+
+                # reset/extend post-timer;
+                # this only gets updated if more motion is detected before 
+                # <POST_SECONDS> seconds since the initial recording start
                 post_timer = now + POST_SECONDS
 
             # if recording, write current frame
@@ -170,13 +207,24 @@ def start_monitor():
                 writer.write(frame)
 
             # check post-timer expiration
+            #
+            # logic: if recording True, and <post_timer> initialized (which is only initialized when motion is detected),
+            #        and current timestamp is greater than the logged <post_timer>, then finalize recording
             if recording and post_timer is not None and now > post_timer:
+
                 # finalize
                 recording = False
                 writer.release()
                 writer = None
                 last_clip_end = time.time()
-                logger.info(f"Finished recording at {datetime.datetime.utcnow().isoformat()} utc")
+                time_now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+                # run person detector on last frame of clip
+                object_suffix, object_score = run_object_detectors_on_frame(frame)
+                new_filename = filepath.replace(".mp4", f"{object_suffix}.mp4")
+                os.rename(filepath, new_filename)
+                filepath = new_filename
+                logger.info(f"Finished recording at {time_now} UTC; person_score={object_score:.2f}")
 
                 # upload in background thread
                 t = threading.Thread(target=uploader_thread, args=(filepath,))
@@ -188,8 +236,8 @@ def start_monitor():
 
             # throttle to target FPS
             elapsed = time.time() - start
-            sleep = max(0, (1.0 / FPS) - elapsed)
-            time.sleep(sleep)
+            sleep_seconds = max(0, (1.0 / FPS) - elapsed)
+            time.sleep(sleep_seconds)
 
     except KeyboardInterrupt:
         logger.warning("Stopping capture.")

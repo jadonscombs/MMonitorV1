@@ -17,8 +17,10 @@ S3_PREFIX = 'captures/'
 
 OUT_DIR = '/tmp/motion_clips'  # local temporary store
 os.makedirs(OUT_DIR, exist_ok=True)
+
+OBJECT_DETECT_MODEL_PATH = "models/efficientdet-lite0.tflite"
 # --------------------------
 
-
+ISOFORMAT = '%Y%m%dT%H%M%SZ'
 KB = 1024
 MB = 1024 * 1024
