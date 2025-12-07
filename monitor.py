@@ -80,7 +80,10 @@ def upload_to_s3_local(filepath, bucket, key):
         return False
     
 
-def uploader_thread(filepath):
+def uploader_thread(filepath, disable_s3: bool):
+    if disable_s3:
+        return
+
     if not S3_UPLOAD:
         return
     key = S3_PREFIX + os.path.basename(filepath)
@@ -111,7 +114,7 @@ def run_object_detectors_on_frame(frame):
 
 
 # Core logic
-def start_monitor():
+def start_monitor(disable_s3: bool = False):
     logger.info("Starting MMonitor Application...")
 
     cap = cv2.VideoCapture(CAM_INDEX)
@@ -227,7 +230,7 @@ def start_monitor():
                 logger.info(f"Finished recording at {time_now} UTC; person_score={object_score:.2f}")
 
                 # upload in background thread
-                t = threading.Thread(target=uploader_thread, args=(filepath,))
+                t = threading.Thread(target=uploader_thread, args=(filepath, disable_s3))
                 t.daemon = True
                 t.start()
 
@@ -249,4 +252,8 @@ def start_monitor():
 
 # Monitor entrypoint
 if __name__ == "__main__":
-    start_monitor()
+    if '--disable-s3' in sys.argv:
+        disable_s3 = True
+    else:
+        disable_s3 = False
+    start_monitor(disable_s3=disable_s3)
