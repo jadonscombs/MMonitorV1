@@ -23,6 +23,17 @@ class PersonDetector:
         self.last_infer_time = 0
         self._suffix = "_person"
 
+    def _set_tf_interpreter(self, model_path: str):
+        try:
+            if is_raspberry_pi_robust():
+                self.interpreter = tf.Interpreter(model_path=model_path)
+            else:
+                self.interpreter = tf.lite.Interpreter(model_path=model_path)
+        except Exception:
+            logger.exception(
+                'Error occurred while initializing PersonDetector'
+            )
+
     @property
     def suffix(self):
         return self._suffix
