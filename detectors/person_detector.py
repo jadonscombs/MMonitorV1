@@ -45,7 +45,7 @@ class PersonDetector:
     def detect_person(self, frame) -> float:
         """Returns person score [0,1]; 0 if none detected."""
         h, w = frame.shape[:2]
-        inp = cv2.resize(frame, (300, 300))
+        inp = cv2.resize(frame, (320, 320))
         inp = np.expand_dims(inp, axis=0).astype(np.uint8)
 
         self.interpreter.set_tensor(self.input_details[0]['index'], inp)
