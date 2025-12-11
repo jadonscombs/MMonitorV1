@@ -7,11 +7,10 @@ from util.check_os import is_raspberry_pi_robust
 logger = logging.getLogger()
 
 # Import correct version of tensorflow depending on host OS
-# if is_raspberry_pi_robust():
-#     import tflite_runtime.interpreter as tf  # type: ignore
-# else:
-#     import tensorflow as tf
-import tensorflow as tf
+if is_raspberry_pi_robust():
+    import tflite_runtime.interpreter as tf  # type: ignore
+else:
+    import tensorflow as tf
 
 
 class PersonDetector:
