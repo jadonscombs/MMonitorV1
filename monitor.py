@@ -28,11 +28,6 @@ import sys
 # Import constants
 from constants import *
 
-# Import and init object detectors
-from detectors.person_detector import PersonDetector
-person_detector = PersonDetector(OBJECT_DETECT_MODEL_PATH, threshold=0.6)
-
-
 # Logger config
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
@@ -55,6 +50,11 @@ console_handler.setFormatter(
 # Add log handlers
 logger.addHandler(log_handler)
 logger.addHandler(console_handler)
+
+
+# Import and init object detectors
+from detectors.person_detector import PersonDetector
+person_detector = PersonDetector(OBJECT_DETECT_MODEL_PATH, threshold=0.6)
 
 
 # TODO: Add implementation of "Monitor" class
