@@ -15,7 +15,7 @@ else:
 
 class PersonDetector:
     def __init__(self, model_path: str, threshold: float = 0.5):
-        self.interpreter = tf.lite.Interpreter(model_path=model_path)
+        self.interpreter = self._set_tf_interpreter(model_path)
         self.interpreter.allocate_tensors()
         self.input_details = self.interpreter.get_input_details()
         self.output_details = self.interpreter.get_output_details()
