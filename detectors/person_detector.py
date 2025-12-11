@@ -21,8 +21,12 @@ class PersonDetector:
 
         self._set_tf_interpreter(model_path)
         self.interpreter.allocate_tensors()
+        
         self.input_details = self.interpreter.get_input_details()
+        logger.debug(f"interpreter input details: {self.input_details}")
         self.output_details = self.interpreter.get_output_details()
+        logger.debug(f"interpreter output details: {self.output_details}")
+
         self.threshold = threshold
         self.last_infer_time = 0
         self._suffix = "_person"
