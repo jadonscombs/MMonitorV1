@@ -21,6 +21,8 @@ import argparse
 import threading
 from collections import deque
 import boto3
+from boto3 import Session
+from botocore.exceptions import NoCredentialsError
 import uuid
 import sys
 
@@ -52,9 +54,17 @@ logger.addHandler(log_handler)
 logger.addHandler(console_handler)
 
 
+# AWS logging config
+logging.getLogger('botocore').setLevel(logging.INFO)
+logging.getLogger('boto3').setLevel(logging.INFO)
+
+
 # Import and init object detectors
 from detectors.person_detector import PersonDetector
 person_detector = PersonDetector(OBJECT_DETECT_MODEL_PATH, threshold=0.6)
+
+# Global S3 client
+s3_client = None
 
 
 # TODO: Add implementation of "Monitor" class
@@ -64,7 +74,30 @@ class Monitor:
 
 
 # create S3 client (uses env vars or ~/.aws/credentials or instance profile)
-s3_client = boto3.client('s3') if S3_UPLOAD else None
+def init_s3_client(disable_s3: bool = False):
+    if disable_s3:
+        logger.info("S3 client DISABLED for this session")
+        return None
+
+    logger.info("S3 client ENABLED for this session")
+    client = boto3.client(S3_CONST) if S3_UPLOAD else None
+    if client is None:
+        logger.warning("returned S3 client is NONE")
+    else:
+        try:
+            connection_test_result = client.list_buckets()
+            logger.info(
+            f"S3 client connection test (list_buckets): {connection_test_result}"
+        )
+        except NoCredentialsError:
+            logger.exception(
+                "S3 connection test failed! "
+                "AWS credentials could not be found."
+            )
+        
+        logger.info("OK - returned S3 client is not null")
+    return client
+
 
 # Define video encoding for OpenCV
 fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # type: ignore
@@ -252,8 +285,10 @@ def start_monitor(disable_s3: bool = False):
 
 # Monitor entrypoint
 if __name__ == "__main__":
-    if '--disable-s3' in sys.argv:
-        disable_s3 = True
-    else:
-        disable_s3 = False
+    # Temporary - later, use ArgParse
+    disable_s3 = True if '--disable-s3' in sys.argv else False
+    s3_client = init_s3_client(disable_s3=disable_s3)
+    logger.info(f"[VERIFICATION] disable_s3={disable_s3}; s3_client={s3_client}")
+    sys.exit(0)
+
     start_monitor(disable_s3=disable_s3)

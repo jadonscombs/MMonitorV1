@@ -12,6 +12,7 @@ DEBOUNCE_SECONDS = 10   # Y seconds minimum between clips
 MIN_CONTOUR_AREA = 500  # tune to ignore small noise
 
 S3_UPLOAD = True
+S3_CONST = 's3'
 S3_BUCKET = 's3-motion-cap-bucket'
 S3_PREFIX = 'captures/'
 
