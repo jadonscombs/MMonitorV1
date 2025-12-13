@@ -181,7 +181,19 @@ def start_monitor(disable_s3: bool = False):
     recording = False
     writer = None
     post_timer = None
-    last_clip_end = 0.0
+    # Initialize last_clip_end to now so we don't immediately allow a new
+    # recording at startup due to the DEBOUNCE_SECONDS check (which compares
+    # now - last_clip_end). This avoids starting a clip immediately if the
+    # background subtractor reports initial foreground at boot.
+    last_clip_end = time.time()
+
+    # Warm-up: skip motion detection for the first few frames so the MOG2
+    # background subtractor can stabilize (cold-start often reports lots of
+    # foreground pixels until it learns the scene). This prevents spurious
+    # recordings immediately on startup.
+    WARMUP_SECONDS = 2
+    warmup_frames = int(FPS * WARMUP_SECONDS)
+    frame_count = 0
 
     logger.info("Starting capture. Ctrl+C to exit.")
     try:
@@ -210,10 +222,16 @@ def start_monitor(disable_s3: bool = False):
             # find contours
             contours, _ = cv2.findContours(fgmask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             motion_detected = False
-            for c in contours:
-                if cv2.contourArea(c) > MIN_CONTOUR_AREA:
-                    motion_detected = True
-                    break
+            # During warm-up, skip treating transient foreground as motion
+            if frame_count >= warmup_frames:
+                for c in contours:
+                    if cv2.contourArea(c) > MIN_CONTOUR_AREA:
+                        motion_detected = True
+                        break
+            else:
+                logger.debug("Warmup: skipping motion detection for frame %d/%d", frame_count + 1, warmup_frames)
+
+            frame_count += 1
 
             # push frame into pre-buffer
             frame_buffer.append(frame.copy())
