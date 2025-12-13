@@ -294,6 +294,5 @@ if __name__ == "__main__":
     disable_s3 = True if '--disable-s3' in sys.argv else False
     s3_client = init_s3_client(disable_s3=disable_s3)
     logger.info(f"[VERIFICATION] disable_s3={disable_s3}; s3_client={s3_client}")
-    sys.exit(0)
 
     start_monitor(disable_s3=disable_s3)
