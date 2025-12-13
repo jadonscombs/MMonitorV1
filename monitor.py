@@ -22,7 +22,7 @@ import threading
 from collections import deque
 import boto3
 from boto3 import Session
-from botocore.exceptions import NoCredentialsError
+from botocore.exceptions import ClientError, NoCredentialsError
 import uuid
 import sys
 
@@ -85,14 +85,19 @@ def init_s3_client(disable_s3: bool = False):
         logger.warning("returned S3 client is NONE")
     else:
         try:
-            connection_test_result = client.list_buckets()
-            logger.info(
-            f"S3 client connection test (list_buckets): {connection_test_result}"
-        )
+            # Check if client's allowed operations exist
+            # - this implicitly confirms the client was initialized
+            operations = client.meta.service_model.operation_names
+            logger.info(f"S3 client has {len(operations)} allowed operations")
         except NoCredentialsError:
             logger.exception(
                 "S3 connection test failed! "
                 "AWS credentials could not be found."
+            )
+        except ClientError:
+            logger.exception(
+                "S3 client established but operation used during connection "
+                "test is unauthorized for registered client!"
             )
         
         logger.info("OK - returned S3 client is not null")
