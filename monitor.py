@@ -228,8 +228,6 @@ def start_monitor(disable_s3: bool = False):
                     if cv2.contourArea(c) > MIN_CONTOUR_AREA:
                         motion_detected = True
                         break
-            else:
-                logger.debug("Warmup: skipping motion detection for frame %d/%d", frame_count + 1, warmup_frames)
 
             frame_count += 1
 
